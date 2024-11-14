@@ -1,7 +1,11 @@
-from math import floor, log2
-from typing import List, Dict
-import mgp
+from collections import defaultdict
 from itertools import chain
+from math import floor, log2
+from typing import Dict, List
+
+import mgp
+
+from igraphalg import dfs
 from mage.max_flow.bfs_weight_min_max import BFS_find_weight_min_max
 
 
@@ -68,6 +72,18 @@ def get_paths(
     ]
 
 
+def contains_cycle(start_v: mgp.Vertex) -> bool:
+    """
+    Method to check if graph contains a cycle
+
+    :param start_v: source vertex for outgoing flow
+    
+    return: True if there is cycle else False 
+    """
+    visited, stack = defaultdict(bool), defaultdict(bool)
+    return dfs(start_v, visited, stack)
+    
+
 def ford_fulkerson_capacity_scaling(
     start_v: mgp.Vertex,
     end_v: mgp.Vertex,
@@ -89,16 +105,20 @@ def ford_fulkerson_capacity_scaling(
 
     max_weight, min_weight = BFS_find_weight_min_max(start_v, edge_property)
 
-    if max_weight <= 0:
+    if min(max_weight, min_weight) <= 0:
         return []
 
+    # Ford-Fulkerson cannot apply to graph with cycle
+    if contains_cycle(start_v):
+        return []
+    
     # delta is init as largest power of 2 smaller than max_weight
     delta = 2 ** floor(log2(max_weight))
 
     edge_flows = dict()
     paths_and_flows = []
 
-    while True:
+    while delta >= 1:
         # augmenting path is a list of interchangeable
         # VertexId and EdgeId
         augmenting_path = [start_v.id]
@@ -107,8 +127,6 @@ def ford_fulkerson_capacity_scaling(
         )
 
         if flow_bottleneck == -1:
-            if delta < min_weight:
-                break
             delta //= 2
             continue
 
@@ -165,7 +183,7 @@ def DFS_path_finding(
         if to_v.id in path:
             continue
 
-        if remaining_capacity > delta:
+        if remaining_capacity >= delta:
             path.append(edge)
             path.append(to_v.id)
 
@@ -180,8 +198,8 @@ def DFS_path_finding(
                 # function call found path, propagate back
                 return min(remaining_capacity, flow_bottleneck)
 
-    # no path found with this vertex, remove it and its edge
-    del path[-2:]
+            # no path found with this vertex, remove it and its edge
+            del path[-2:]
 
     return -1
 
